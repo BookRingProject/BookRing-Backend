@@ -162,11 +162,18 @@ const deleteBook = async (req, res) => {
 // @access  Lecturer only
 const getMyBooks = async (req, res) => {
   try {
+    console.log('📚 Getting books for lecturer:', req.user._id);
+    
     const books = await Book.find({ lecturerId: req.user._id })
       .sort({ createdAt: -1 });
 
+    console.log(`📚 Found ${books.length} books`);
+    console.log('📚 First book sample:', books[0] ? books[0].title : 'No books');
+
     return successResponse(res, books, 'Books fetched successfully');
   } catch (error) {
+    console.error('❌ Get my books error:', error);
+    console.error('❌ Error stack:', error.stack);
     return errorResponse(res, error.message, 500);
   }
 };
