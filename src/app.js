@@ -16,16 +16,20 @@ const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
-// CORS - Allow multiple origins including StackBlitz
+// Allowed origins (including StackBlitz patterns)
 const allowedOrigins = [
   'http://localhost:3000',
+  'http://localhost:5000',
+  'https://bookring.onrender.com',
   'https://bookring.vercel.app',
   /\.stackblitz\.io$/,
   /\.webcontainer\.io$/,
   /\.credentialless-staticblitz\.com$/,
+  /\.local-credentialless\.webcontainer\.io$/,
 ];
 
-app.use(cors({
+// CORS options
+const corsOptions = {
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
@@ -40,16 +44,30 @@ app.use(cors({
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
-      callback(null, true); // Still allow for now, log it
+      // Still allow for now - temporary fix
+      callback(null, true);
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-forwarded-host',
+    'X-Forwarded-Host',
+    'x-forwarded-proto',
+    'X-Forwarded-Proto',
+    'x-forwarded-for',
+    'X-Forwarded-For',
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+};
 
-// Handle preflight requests
-app.options('*', cors());
+// Apply CORS
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
