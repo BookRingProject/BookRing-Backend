@@ -1,4 +1,5 @@
 const ttsConfig = require('../config/tts');
+const { uploadAudio } = require('./uploadService');
 
 const convertToAudio = async (text, title) => {
   try {
@@ -23,8 +24,10 @@ const convertToAudio = async (text, title) => {
     // Get audio as buffer
     const audioBuffer = await response.arrayBuffer();
     
-    // Upload to Cloudinary (handled in uploadService)
-    return audioBuffer;
+    // Upload to Cloudinary and get URL
+    const audioUrl = await uploadAudio(audioBuffer, title);
+    
+    return audioUrl;  // Return the URL, not the buffer
   } catch (error) {
     console.error('TTS conversion error:', error);
     throw new Error('Failed to convert text to audio: ' + error.message);
