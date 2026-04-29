@@ -8,6 +8,8 @@ const { successResponse, errorResponse } = require('../utils/apiResponse');
 // @access  Public
 const signup = async (req, res) => {
   try {
+    console.log('📝 Signup request body:', req.body);
+    
     const { name, email, password, role, profilePicture, specialty, phone, institution } = req.body;
 
     const validation = validateSignup(req.body, role);
