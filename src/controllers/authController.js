@@ -13,15 +13,21 @@ const signup = async (req, res) => {
     const { name, email, password, role, profilePicture, specialty, phone, institution } = req.body;
 
     const validation = validateSignup(req.body, role);
+    console.log('1️⃣ Validation result:', validation.isValid);
+    
     if (!validation.isValid) {
       return errorResponse(res, 'Validation failed', 400, validation.errors);
     }
 
+    console.log('2️⃣ Checking if user exists...');
     const userExists = await User.findOne({ email });
+    console.log('3️⃣ User exists:', userExists ? 'YES' : 'NO');
+    
     if (userExists) {
       return errorResponse(res, 'User already exists', 400);
     }
 
+    console.log('4️⃣ Building user data...');
     const userData = {
       name,
       email,
@@ -35,16 +41,29 @@ const signup = async (req, res) => {
       userData.phone = phone || '';
       userData.institution = institution || '';
     }
+    console.log('5️⃣ User data:', JSON.stringify(userData, null, 2));
 
+
+    console.log('6️⃣ Creating user in MongoDB...');
     const user = await User.create(userData);
+    console.log('7️⃣ User created successfully:', user._id);
+
+    
     const token = generateToken(user._id, user.role);
 
     const userResponse = user.toObject();
     delete userResponse.password;
 
+    console.log('8️⃣ Sending success response');
     return successResponse(res, { user: userResponse, token }, 'User created successfully', 201);
-  } catch (error) {
-    console.error('Signup error:', error);
+    
+  } catch (error) {console.error('❌ Signup error:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error message:', error.message);
+    if (error.code === 11000) {
+      console.error('❌ Duplicate key error - email already exists');
+    }
     return errorResponse(res, error.message, 500);
   }
 };
