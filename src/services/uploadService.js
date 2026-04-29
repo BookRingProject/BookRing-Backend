@@ -35,11 +35,13 @@ const uploadAudio = async (audioBuffer, title) => {
         }
       );
       
-      streamifier.createReadStream(audioBuffer).pipe(uploadStream);
+      // Convert buffer to stream and pipe to Cloudinary
+      const bufferStream = require('stream').Readable.from(Buffer.from(audioBuffer));
+      bufferStream.pipe(uploadStream);
     });
   } catch (error) {
     console.error('Audio upload error:', error);
-    throw new Error('Failed to upload audio to Cloudinary');
+    throw new Error('Failed to upload audio to Cloudinary: ' + error.message);
   }
 };
 
