@@ -53,4 +53,21 @@ const handleUploadError = (err, req, res, next) => {
   next();
 };
 
-module.exports = { upload, handleUploadError };
+const imageFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed'), false);
+  }
+};
+
+// Create a separate upload for images
+const uploadImage = multer({
+  storage,
+  fileFilter: imageFilter,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB for images
+});
+
+
+
+module.exports = { upload, uploadImage, handleUploadError };
