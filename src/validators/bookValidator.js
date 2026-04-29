@@ -7,9 +7,9 @@ const validateBookUpload = (title, category) => {
     errors.title = 'Book title must be at least 2 characters';
   }
 
-  if (!category) {
-    errors.category = 'Category is required';
-  } else if (!CATEGORIES.includes(category)) {
+  // Category is optional during upload - AI will detect it
+  // Only validate category if it's provided
+  if (category && !CATEGORIES.includes(category)) {
     errors.category = `Category must be one of: ${CATEGORIES.join(', ')}`;
   }
 
