@@ -1,20 +1,23 @@
 const fs = require('fs');
 const pdf = require('pdf-parse');
-const { fromPath } = require('pdf2img');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
+// Alternative: Use pdf-to-image or similar
+// For now, we'll skip cover extraction to unblock uploads
 
 const extractCoverImage = async (pdfPath) => {
   try {
-    const outputPath = pdfPath.replace('.pdf', '_cover.png');
+    // Option 1: Use ImageMagick (if installed on Render)
+    // const outputPath = pdfPath.replace('.pdf', '_cover.png');
+    // await execPromise(`convert "${pdfPath}[0]" "${outputPath}"`);
+    // return outputPath;
     
-    // Convert first page to image
-    await fromPath(pdfPath, {
-      output: outputPath,
-      page: 1,
-      type: 'png',
-      density: 150,
-    });
-
-    return outputPath;
+    // Option 2: Skip cover extraction for now (use placeholder)
+    console.log('Cover extraction skipped - using placeholder');
+    return null;
+    
   } catch (error) {
     console.error('Cover extraction error:', error);
     return null;
