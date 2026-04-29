@@ -20,7 +20,7 @@ const app = express();
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-forwarded-host', 'X-Forwarded-Host', 'x-forwarded-proto', 'X-Forwarded-Proto', 'x-forwarded-for', 'X-Forwarded-For'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-forwarded-host', 'x-forwarded-port',  'X-Forwarded-Host', 'x-forwarded-proto', 'X-Forwarded-Proto', 'x-forwarded-for', 'X-Forwarded-For'],
 }));
 
 // Handle preflight requests
