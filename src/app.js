@@ -13,6 +13,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const trendRoutes = require('./routes/trendRoutes');
 const userRoutes = require('./routes/userRoutes');
+const saveRoutes = require('./routes/saveRoutes');
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/trending', trendRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/saves', saveRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
