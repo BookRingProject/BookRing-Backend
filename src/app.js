@@ -14,6 +14,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const trendRoutes = require('./routes/trendRoutes');
 const userRoutes = require('./routes/userRoutes');
 const saveRoutes = require('./routes/saveRoutes');
+const followRoutes = require('./routes/followRoutes');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/trending', trendRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/saves', saveRoutes);
+app.use('/api/follows', followRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
