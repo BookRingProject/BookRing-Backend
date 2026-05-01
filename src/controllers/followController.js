@@ -10,20 +10,34 @@ const followLecturer = async (req, res) => {
     const { lecturerId } = req.params;
     const studentId = req.user._id;
 
+    console.log('📝 Follow request - Student ID:', studentId);
+    console.log('📝 Follow request - Lecturer ID:', lecturerId);
+    console.log('📝 Are they the same?', studentId.toString() === lecturerId);
+
+    if (studentId.toString() === lecturerId) {
+      console.log('❌ Self-follow prevented');
+      return errorResponse(res, 'You cannot follow yourself', 400);
+    }
+
     const lecturer = await User.findOne({ _id: lecturerId, role: 'lecturer' });
     if (!lecturer) {
+      console.log('❌ Lecturer not found:', lecturerId);
       return errorResponse(res, 'Lecturer not found', 404);
     }
 
     const existingFollow = await Follow.findOne({ studentId, lecturerId });
     if (existingFollow) {
+      console.log('❌ Already following');
       return errorResponse(res, 'Already following this lecturer', 400);
     }
 
+    console.log('✅ Creating follow relationship');
     await Follow.create({ studentId, lecturerId });
 
     return successResponse(res, { following: true }, 'Lecturer followed successfully');
   } catch (error) {
+    console.error('❌ Follow error details:', error);
+    console.error('❌ Error message:', error.message);
     return errorResponse(res, error.message, 500);
   }
 };
