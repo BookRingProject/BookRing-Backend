@@ -76,13 +76,19 @@ const checkSaved = async (req, res) => {
 const getSavedBooks = async (req, res) => {
   try {
     const saves = await Save.find({ studentId: req.user._id })
-      .populate('bookId')
+      .populate({
+        path: 'bookId',
+        populate: [
+          { path: 'lecturerId', select: 'name profilePicture specialty institution' }
+        ]
+      })
       .sort({ createdAt: -1 });
 
     const books = saves.map(save => save.bookId);
 
     return successResponse(res, books, 'Saved books fetched successfully');
   } catch (error) {
+    console.error('Get saved books error:', error);
     return errorResponse(res, error.message, 500);
   }
 };
