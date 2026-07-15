@@ -7,10 +7,6 @@ const extractCoverImage = async (pdfPath) => {
   return null; // Always return null, let frontend use Cloudinary
 };
 
-module.exports = {
-  extractCoverImage,
-  extractTextFromPDF,
-};
 
 const extractTextFromPDF = async (pdfPath) => {
   try {
