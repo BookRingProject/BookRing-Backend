@@ -6,6 +6,8 @@ const bookSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Book title is required'],
       trim: true,
+      minlength: [2, 'Title must be at least 2 characters'],
+      maxlength: [100, 'Title must be less than 100 characters'],
     },
     lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -35,6 +37,23 @@ const bookSchema = new mongoose.Schema(
     saveCount: {
       type: Number,
       default: 0,
+    },
+    // NEW: Track if this is an image-based upload
+    isImageBased: {
+      type: Boolean,
+      default: false,
+    },
+    // NEW: Track file type
+    fileType: {
+      type: String,
+      enum: ['pdf', 'image'],
+      default: 'pdf',
+    },
+    // NEW: Store file metadata
+    fileMetadata: {
+      size: Number,
+      mimeType: String,
+      originalName: String,
     },
   },
   {
