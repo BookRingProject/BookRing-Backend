@@ -2,55 +2,89 @@ const Book = require('../models/Book');
 const User = require('../models/User');
 const Save = require('../models/Save');
 const View = require('../models/View');
-const { validateBookUpload } = require('../validators/bookValidator');
+const { validateBookUpload, validateImageUpload } = require('../validators/bookValidator');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const { uploadPDF, uploadAudio, uploadImage } = require('../services/uploadService');
-const { summarizePDF, detectCategory } = require('../services/aiService');
+const { summarizePDF, detectCategory, summarizeImage, isImageFile } = require('../services/aiService');
 const { convertToAudio } = require('../services/ttsService');
 const { extractCoverImage } = require('../services/pdfService');
 const { cleanupTempFile } = require('../services/storageService');
 const fs = require('fs');
+const path = require('path');
 
-// @desc    Upload a new book
-// @route   POST /api/books/upload
-// @access  Lecturer only
+/**
+ * @desc    Upload a new book (PDF or Image)
+ * @route   POST /api/books/upload
+ * @access  Lecturer only
+ */
 const uploadBook = async (req, res) => {
   try {
     if (!req.file) {
-      return errorResponse(res, 'Please upload a PDF file', 400);
+      return errorResponse(res, 'Please upload a PDF or image file', 400);
     }
 
     const { title } = req.body;
     const lecturerId = req.user._id;
+    const filePath = req.file.path;
+    const fileExtension = path.extname(filePath).toLowerCase();
+    const isImage = isImageFile(filePath);
 
-    const validation = validateBookUpload(title, null);
+    // Validate based on file type
+    const validation = validateBookUpload(title, filePath);
     if (!validation.isValid) {
+      cleanupTempFile(filePath);
       return errorResponse(res, 'Validation failed', 400, validation.errors);
     }
 
-    const pdfPath = req.file.path;
-
-    // Extract cover image from PDF
-    const coverImagePath = await extractCoverImage(pdfPath);
-    
-    // Upload PDF to Cloudinary
-    const pdfUrl = await uploadPDF(pdfPath, title);
-    
-    // Upload cover image to Cloudinary
+    let pdfUrl = '';
     let coverUrl = '';
-    if (coverImagePath) {
-      coverUrl = await uploadImage(coverImagePath, `covers/${title}`);
-      cleanupTempFile(coverImagePath);
+    let summaryText = '';
+    let category = '';
+    let audioUrl = '';
+    let processedFilePath = filePath;
+
+    // Case 1: PDF Upload
+    if (!isImage) {
+      // Extract cover image from PDF (keeping existing logic)
+      const coverImagePath = await extractCoverImage(filePath);
+      
+      // Upload PDF to Cloudinary
+      pdfUrl = await uploadPDF(filePath, title);
+      
+      // Upload cover image to Cloudinary if extracted
+      if (coverImagePath) {
+        coverUrl = await uploadImage(coverImagePath, `covers/${title}`);
+        cleanupTempFile(coverImagePath);
+      }
+
+      // Detect category using AI with vision capabilities
+      category = await detectCategory(filePath);
+
+      // Summarize PDF using AI with vision capabilities
+      summaryText = await summarizePDF(filePath);
+
+    // Case 2: Image Upload (NEW)
+    } else {
+      // Upload image to Cloudinary as the main content
+      const imageUrl = await uploadImage(filePath, `books/${title}`);
+      pdfUrl = imageUrl; // Store image URL in pdfUrl field for consistency
+      
+      // Try to extract a cover from the image itself
+      coverUrl = imageUrl; // Use the same image as cover
+
+      // Detect category using AI with vision capabilities
+      category = await detectCategory(filePath);
+
+      // Summarize image using AI with vision capabilities (NEW)
+      summaryText = await summarizeImage(filePath);
+
+      // No PDF conversion needed for images
     }
 
-    // Detect category using AI
-    const category = await detectCategory(pdfPath);
-
-    // Summarize PDF using AI
-    const summaryText = await summarizePDF(pdfPath);
-
     // Convert summary to audio using TTS
-    const audioUrl = await convertToAudio(summaryText, title);
+    if (summaryText) {
+      audioUrl = await convertToAudio(summaryText, title);
+    }
 
     // Create book record
     const book = await Book.create({
@@ -62,10 +96,11 @@ const uploadBook = async (req, res) => {
       summaryText,
       audioUrl,
       saveCount: 0,
+      isImageBased: isImage, // Add flag to track content type
     });
 
     // Cleanup temp file
-    cleanupTempFile(pdfPath);
+    cleanupTempFile(filePath);
 
     return successResponse(res, book, 'Book uploaded successfully', 201);
   } catch (error) {
@@ -75,9 +110,78 @@ const uploadBook = async (req, res) => {
   }
 };
 
-// @desc    Get all books
-// @route   GET /api/books
-// @access  Private
+/**
+ * @desc    Upload and summarize a standalone image (convenience endpoint)
+ * @route   POST /api/books/upload-image
+ * @access  Lecturer only
+ */
+const uploadImageBook = async (req, res) => {
+  try {
+    if (!req.file) {
+      return errorResponse(res, 'Please upload an image file', 400);
+    }
+
+    const { title } = req.body;
+    const lecturerId = req.user._id;
+    const imagePath = req.file.path;
+
+    // Validate it's actually an image
+    if (!isImageFile(imagePath)) {
+      cleanupTempFile(imagePath);
+      return errorResponse(res, 'File must be an image (JPEG, PNG, WebP, etc.)', 400);
+    }
+
+    const validation = validateImageUpload(title, imagePath);
+    if (!validation.isValid) {
+      cleanupTempFile(imagePath);
+      return errorResponse(res, 'Validation failed', 400, validation.errors);
+    }
+
+    // Upload image to Cloudinary
+    const imageUrl = await uploadImage(imagePath, `books/${title}`);
+
+    // Detect category using AI with vision
+    const category = await detectCategory(imagePath);
+
+    // Summarize image using AI with vision
+    const summaryText = await summarizeImage(imagePath, {
+      customPrompt: 'Please provide a detailed description and analysis of this image, including any visible text, objects, or concepts.'
+    });
+
+    // Convert summary to audio
+    let audioUrl = '';
+    if (summaryText) {
+      audioUrl = await convertToAudio(summaryText, title);
+    }
+
+    // Create book record
+    const book = await Book.create({
+      title,
+      lecturerId,
+      pdfUrl: imageUrl, // Store image URL in pdfUrl field
+      coverUrl: imageUrl,
+      category,
+      summaryText,
+      audioUrl,
+      saveCount: 0,
+      isImageBased: true,
+    });
+
+    cleanupTempFile(imagePath);
+
+    return successResponse(res, book, 'Image uploaded and summarized successfully', 201);
+  } catch (error) {
+    console.error('Upload image error:', error);
+    if (req.file) cleanupTempFile(req.file.path);
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+/**
+ * @desc    Get all books
+ * @route   GET /api/books
+ * @access  Private
+ */
 const getAllBooks = async (req, res) => {
   try {
     const { category, lecturerId, page = 1, limit = 20 } = req.query;
@@ -108,9 +212,11 @@ const getAllBooks = async (req, res) => {
   }
 };
 
-// @desc    Get single book by ID
-// @route   GET /api/books/:id
-// @access  Private
+/**
+ * @desc    Get single book by ID
+ * @route   GET /api/books/:id
+ * @access  Private
+ */
 const getBookById = async (req, res) => {
   try {
     const book = await Book.findById(req.params.id)
@@ -133,9 +239,11 @@ const getBookById = async (req, res) => {
   }
 };
 
-// @desc    Delete book
-// @route   DELETE /api/books/:id
-// @access  Lecturer only (owner)
+/**
+ * @desc    Delete book
+ * @route   DELETE /api/books/:id
+ * @access  Lecturer only (owner)
+ */
 const deleteBook = async (req, res) => {
   try {
     const book = await Book.findById(req.params.id);
@@ -157,9 +265,11 @@ const deleteBook = async (req, res) => {
   }
 };
 
-// @desc    Get lecturer's books
-// @route   GET /api/books/lecturer/my-books
-// @access  Lecturer only
+/**
+ * @desc    Get lecturer's books
+ * @route   GET /api/books/lecturer/my-books
+ * @access  Lecturer only
+ */
 const getMyBooks = async (req, res) => {
   try {
     console.log('📚 Getting books for lecturer:', req.user._id);
@@ -168,7 +278,9 @@ const getMyBooks = async (req, res) => {
       .sort({ createdAt: -1 });
 
     console.log(`📚 Found ${books.length} books`);
-    console.log('📚 First book sample:', books[0] ? books[0].title : 'No books');
+    if (books.length > 0) {
+      console.log('📚 First book sample:', books[0].title);
+    }
 
     return successResponse(res, books, 'Books fetched successfully');
   } catch (error) {
@@ -180,6 +292,7 @@ const getMyBooks = async (req, res) => {
 
 module.exports = {
   uploadBook,
+  uploadImageBook,
   getAllBooks,
   getBookById,
   deleteBook,
