@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   uploadBook,
+  uploadImageBook,
   getAllBooks,
   getBookById,
   deleteBook,
@@ -8,11 +9,19 @@ const {
 } = require('../controllers/bookController');
 const { protect } = require('../middleware/authMiddleware');
 const { isLecturer } = require('../middleware/roleMiddleware');
-const { uploadPDF, handleUploadError } = require('../middleware/uploadMiddleware');
+const { upload, uploadPDFOnly, uploadImageOnly, handleUploadError } = require('../config/multer');
 
 const router = express.Router();
 
-router.post('/upload', protect, isLecturer, uploadPDF.single('pdf'), handleUploadError, uploadBook);
+// Updated: Now accepts PDF or Image via 'file' field
+router.post('/upload', protect, isLecturer, upload.single('file'), handleUploadError, uploadBook);
+
+// New: Image-only upload endpoint
+router.post('/upload-image', protect, isLecturer, uploadImageOnly.single('image'), handleUploadError, uploadImageBook);
+
+// Keep backward compatibility for existing frontend
+router.post('/upload-pdf', protect, isLecturer, uploadPDFOnly.single('pdf'), handleUploadError, uploadBook);
+
 router.get('/', protect, getAllBooks);
 router.get('/my-books', protect, isLecturer, getMyBooks);
 router.get('/:id', protect, getBookById);
