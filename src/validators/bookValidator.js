@@ -7,6 +7,7 @@ const { CATEGORIES } = require('../utils/constants');
  * @param {Object} file - Optional file object from multer
  * @returns {Object} - Validation result with errors
  */
+
 const validateBookUpload = (title, category, file = null) => {
   const errors = {};
 
