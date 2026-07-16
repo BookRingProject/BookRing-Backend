@@ -30,7 +30,7 @@ const uploadBook = async (req, res) => {
     const isImage = isImageFile(filePath);
 
     // Validate based on file type
-    const validation = validateBookUpload(title, filePath);
+    const validation = validateBookUpload(title, null, req.file);
     if (!validation.isValid) {
       cleanupTempFile(filePath);
       return errorResponse(res, 'Validation failed', 400, validation.errors);
@@ -131,7 +131,7 @@ const uploadImageBook = async (req, res) => {
       return errorResponse(res, 'File must be an image (JPEG, PNG, WebP, etc.)', 400);
     }
 
-    const validation = validateImageUpload(title, imagePath);
+    const validation = validateImageUpload(title, req.file, null);
     if (!validation.isValid) {
       cleanupTempFile(imagePath);
       return errorResponse(res, 'Validation failed', 400, validation.errors);
