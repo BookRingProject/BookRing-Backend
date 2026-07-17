@@ -4,10 +4,10 @@ const Save = require('../models/Save');
 const View = require('../models/View');
 const { validateBookUpload, validateImageUpload } = require('../validators/bookValidator');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
-const { uploadPDF, uploadAudio, uploadImage } = require('../services/uploadService');
+const { uploadPDF, uploadToImgBB, uploadAudio, uploadImage } = require('../services/uploadService');
 const { summarizePDF, detectCategory, summarizeImage, isImageFile } = require('../services/aiService');
 const { convertToAudio } = require('../services/ttsService');
-const { extractCoverImage } = require('../services/pdfService');
+const { extractCoverImage, isImageBasedPDF } = require('../services/pdfService');
 const { cleanupTempFile } = require('../services/storageService');
 const fs = require('fs');
 const path = require('path');
@@ -48,8 +48,18 @@ const uploadBook = async (req, res) => {
       // Extract cover image from PDF (keeping existing logic)
       const coverImagePath = await extractCoverImage(filePath);
       
-      // Upload PDF to Cloudinary
-      pdfUrl = await uploadPDF(filePath, title);
+      // Check if PDF is image-based or text-based
+      const isImageBased = await isImageBasedPDF(filePath);
+      
+      if (isImageBased) {
+        // Upload image-based PDF to ImgBB (bypasses Cloudinary's 10MB limit)
+        console.log('📄 Image-based PDF detected - uploading to ImgBB');
+        pdfUrl = await uploadToImgBB(filePath);
+      } else {
+        // Upload text-based PDF to Cloudinary
+        console.log('📄 Text-based PDF detected - uploading to Cloudinary');
+        pdfUrl = await uploadPDF(filePath, title);
+      }
       
       // Upload cover image to Cloudinary if extracted
       if (coverImagePath) {
