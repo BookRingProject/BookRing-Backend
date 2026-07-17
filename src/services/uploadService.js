@@ -1,9 +1,8 @@
 const cloudinary = require('../config/cloudinary');
-const { IMGBB_API_KEY } = require('../config/imgbb');
+const supabase = require('../config/supabase');
 const fs = require('fs');
 const streamifier = require('streamifier');
-const FormData = require('form-data');
-
+const path = require('path');
 
 // Upload PDF to Cloudinary
 const uploadPDF = async (filePath, title) => {
@@ -21,29 +20,36 @@ const uploadPDF = async (filePath, title) => {
   }
 };
 
-// Upload to ImgBB (for image-based PDFs)
-const uploadToImgBB = async (filePath) => {
+// Upload to Supabase Storage (for image-based PDFs)
+const uploadToSupabase = async (filePath, title) => {
   try {
-    const formData = new FormData();
-    formData.append('key', IMGBB_API_KEY);
-    formData.append('image', fs.createReadStream(filePath));
+    const fileBuffer = fs.readFileSync(filePath);
+    const fileExtension = path.extname(filePath);
+    const fileName = `${Date.now()}_${title.replace(/\s/g, '_')}${fileExtension}`;
 
-    const response = await fetch('https://api.imgbb.com/1/upload', {
-      method: 'POST',
-      body: formData,
-    });
+    // Upload to Supabase bucket
+    const { data, error } = await supabase.storage
+      .from('books')
+      .upload(fileName, fileBuffer, {
+        contentType: 'application/pdf',
+        cacheControl: '3600',
+        upsert: false,
+      });
 
-    const data = await response.json();
-
-    if (!data.success) {
-      console.error('ImgBB upload error:', data.error);
-      throw new Error(`ImgBB upload failed: ${data.error?.message || 'Unknown error'}`);
+    if (error) {
+      console.error('Supabase upload error:', error);
+      throw new Error(`Supabase upload failed: ${error.message}`);
     }
 
-    return data.data.url; // ImgBB returns the direct URL here
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('books')
+      .getPublicUrl(fileName);
+
+    return urlData.publicUrl;
   } catch (error) {
-    console.error('ImgBB upload error:', error);
-    throw new Error('Failed to upload to ImgBB: ' + error.message);
+    console.error('Supabase upload error:', error);
+    throw new Error('Failed to upload to Supabase: ' + error.message);
   }
 };
 
@@ -54,7 +60,7 @@ const uploadAudio = async (audioBuffer, title) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'bookring/audio',
-          resource_type: 'video', // Audio is treated as video type in Cloudinary
+          resource_type: 'video',
           public_id: `${Date.now()}_${title.replace(/\s/g, '_')}`,
           format: 'mp3',
         },
@@ -64,7 +70,6 @@ const uploadAudio = async (audioBuffer, title) => {
         }
       );
       
-      // Convert buffer to stream and pipe to Cloudinary
       const bufferStream = require('stream').Readable.from(Buffer.from(audioBuffer));
       bufferStream.pipe(uploadStream);
     });
@@ -91,7 +96,7 @@ const uploadImage = async (filePath, title) => {
 
 module.exports = {
   uploadPDF,
-  uploadToImgBB,
+  uploadToSupabase,
   uploadAudio,
   uploadImage,
 };
