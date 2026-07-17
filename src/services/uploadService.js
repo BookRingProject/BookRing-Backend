@@ -1,6 +1,8 @@
 const cloudinary = require('../config/cloudinary');
+const { IMGBB_API_KEY } = require('../config/imgbb');
 const fs = require('fs');
 const streamifier = require('streamifier');
+const FormData = require('form-data');
 
 // Upload PDF to Cloudinary
 const uploadPDF = async (filePath, title) => {
@@ -15,6 +17,32 @@ const uploadPDF = async (filePath, title) => {
   } catch (error) {
     console.error('PDF upload error:', error);
     throw new Error('Failed to upload PDF to Cloudinary');
+  }
+};
+
+// Upload to ImgBB (for image-based PDFs)
+const uploadToImgBB = async (filePath) => {
+  try {
+    const formData = new FormData();
+    formData.append('key', IMGBB_API_KEY);
+    formData.append('image', fs.createReadStream(filePath));
+
+    const response = await fetch('https://api.imgbb.com/1/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      console.error('ImgBB upload error:', data.error);
+      throw new Error(`ImgBB upload failed: ${data.error?.message || 'Unknown error'}`);
+    }
+
+    return data.data.url; // ImgBB returns the direct URL here
+  } catch (error) {
+    console.error('ImgBB upload error:', error);
+    throw new Error('Failed to upload to ImgBB: ' + error.message);
   }
 };
 
@@ -62,6 +90,7 @@ const uploadImage = async (filePath, title) => {
 
 module.exports = {
   uploadPDF,
+  uploadToImgBB,
   uploadAudio,
   uploadImage,
 };
