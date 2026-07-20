@@ -89,7 +89,6 @@ const searchBookByTitle = async (message, userId) => {
 
     // Build search query - find books accessible to this user
     const query = {
-      lecturerId: userId,  
       title: { $regex: searchTitle, $options: 'i' }
     };
     console.log('🔎 [searchBookByTitle] Database query:', JSON.stringify(query, null, 2));
