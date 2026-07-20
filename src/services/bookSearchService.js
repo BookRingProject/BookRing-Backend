@@ -1,17 +1,61 @@
 const Book = require('../models/Book');
+const { model } = require('../config/gemini');
 
 /**
- * Extract potential book title from user message
+ * Use Gemini to intelligently extract the book title from user message
+ * @param {string} message - User's chat message
+ * @returns {Promise<string>} - Extracted title or empty string
+ */
+const extractBookTitleWithAI = async (message) => {
+  try {
+    console.log('🤖 [extractBookTitleWithAI] Using Gemini to extract title from:', message);
+
+    const prompt = `You are a book title extractor. Your ONLY job is to extract the book title from the user's message.
+
+Here are some examples:
+- "What is the book 'Thinking in Systems' about?" → Thinking in Systems
+- "Can you summarize my Machine Learning book?" → Machine Learning
+- "Tell me about 'The Art of War'" → The Art of War
+- "What does the image 'Barber Flyer' talk about?" → Barber Flyer
+- "Explain the PDF 'Data Science Handbook'" → Data Science Handbook
+- "I need help with my Physics textbook" → Physics
+- "What's in the file 'Annual Report 2024'?" → Annual Report 2024
+
+Now extract the book title from this message. Return ONLY the title, nothing else. No explanations, no quotes, just the title.
+
+User message: "${message}"
+
+Title:`;
+
+    const result = await model.generateContent(prompt);
+    let extractedTitle = result.response.text().trim();
+    
+    // Clean up the response (remove quotes, extra spaces)
+    extractedTitle = extractedTitle.replace(/^["']|["']$/g, '').trim();
+    
+    console.log(`✅ [extractBookTitleWithAI] Gemini extracted: "${extractedTitle}"`);
+    return extractedTitle;
+
+  } catch (error) {
+    console.error('❌ [extractBookTitleWithAI] Error:', error.message);
+    // Fallback to regex extraction if Gemini fails
+    console.log('🔄 Falling back to regex extraction...');
+    return extractBookTitleRegex(message);
+  }
+};
+
+/**
+ * Fallback: Extract potential book title from user message using regex
  * @param {string} message - User's chat message
  * @returns {string} - Extracted title or empty string
  */
-const extractBookTitle = (message) => {
-  console.log('🔍 [extractBookTitle] Raw message:', message);
+const extractBookTitleRegex = (message) => {
+  console.log('🔍 [extractBookTitleRegex] Raw message:', message);
 
   // Common patterns users might use
   const patterns = [
-    /(?:my|the|this) book\s+["']([^"']+)["']/i,
-    /(?:my|the|this) book\s+['"]([^"']+)['"]/i,
+    /(?:my|the|this)\s+book\s+["']([^"']+)["']/i,
+    /(?:my|the|this)\s+book\s+['"]([^"']+)['"]/i,
     /(?:about|on|for)\s+["']([^"']+)["']/i,
     /(?:about|on|for)\s+['"]([^"']+)['"]/i,
     /book\s+["']([^"']+)["']/i,
@@ -20,6 +64,8 @@ const extractBookTitle = (message) => {
     /['"]([^"']+)['"]\s+book/i,
     /(?:tell me about|summarize|explain|analyze)\s+["']([^"']+)["']/i,
     /(?:tell me about|summarize|explain|analyze)\s+['"]([^"']+)['"]/i,
+    /(?:image|file|document|pdf)\s+['"]?([^'"]+)['"]?/i,
+    /['"]?([^'"]+)['"]?\s+(?:image|file|document|pdf)/i,
   ];
 
   // Try each pattern
@@ -27,7 +73,7 @@ const extractBookTitle = (message) => {
     const match = message.match(pattern);
     if (match && match[1]) {
       const extracted = match[1].trim();
-      console.log('✅ [extractBookTitle] Pattern matched! Extracted:', extracted);
+      console.log('✅ [extractBookTitleRegex] Pattern matched! Extracted:', extracted);
       return extracted;
     }
   }
@@ -36,44 +82,45 @@ const extractBookTitle = (message) => {
   const fallbackPhrases = [
     /(?:about|on|for|of)\s+([a-zA-Z0-9\s\-_]{3,30})/i,
     /(?:my|the)\s+([a-zA-Z0-9\s\-_]{3,30})\s+book/i,
+    /['"]?([a-zA-Z0-9\s\-_]{3,30})['"]?/i,
   ];
 
   for (const phrase of fallbackPhrases) {
     const match = message.match(phrase);
     if (match && match[1]) {
       const extracted = match[1].trim();
-      console.log('✅ [extractBookTitle] Fallback matched! Extracted:', extracted);
+      console.log('✅ [extractBookTitleRegex] Fallback matched! Extracted:', extracted);
       return extracted;
     }
   }
 
-  console.log('❌ [extractBookTitle] No pattern matched. Returning empty string.');
+  console.log('❌ [extractBookTitleRegex] No pattern matched. Returning empty string.');
   return '';
 };
 
 /**
- * Search for a book by title with fuzzy matching
+ * Search for a book by title across ALL books in the platform
  * @param {string} message - User's chat message
- * @param {string} userId - User ID for permission filtering
+ * @param {string} userId - User ID (used for logging only)
  * @returns {Promise<Object|null>} - Matching book or null
  */
 const searchBookByTitle = async (message, userId) => {
   try {
-    console.log('📚 [searchBookByTitle] Starting search...');
+    console.log('📚 [searchBookByTitle] Starting search across ALL books...');
     console.log('📝 [searchBookByTitle] User message:', message);
     console.log('👤 [searchBookByTitle] User ID:', userId);
 
-    // Extract potential title from message
-    let searchTitle = extractBookTitle(message);
+    // Extract potential title from message using Gemini
+    let searchTitle = await extractBookTitleWithAI(message);
     console.log('🔍 [searchBookByTitle] Extracted title:', searchTitle || '(empty)');
     
-    // If no title extracted, try using the whole message
-    if (!searchTitle) {
-      console.log('🔄 [searchBookByTitle] No title extracted, cleaning full message...');
+    // If Gemini returned nothing or too short, try cleaning the message
+    if (!searchTitle || searchTitle.length < 2) {
+      console.log('🔄 [searchBookByTitle] Title too short, trying cleaned message...');
       // Remove common chat words to get a cleaner search query
       const cleaned = message
-        .replace(/\b(my|the|this|that|a|an|about|on|for|of|with|from|to)\b/gi, '')
-        .replace(/book/gi, '')
+        .replace(/\b(my|the|this|that|a|an|about|on|for|of|with|from|to|what|does|image|file|document|pdf|book|tell|me|explain|summarize|analyze)\b/gi, '')
+        .replace(/['"]/g, '')
         .trim();
       
       console.log('🧹 [searchBookByTitle] Cleaned message:', cleaned);
@@ -87,25 +134,25 @@ const searchBookByTitle = async (message, userId) => {
       }
     }
 
-    // Build search query - find books accessible to this user
+    // Build search query - search ALL books in the platform
     const query = {
       title: { $regex: searchTitle, $options: 'i' }
     };
-    console.log('🔎 [searchBookByTitle] Database query:', JSON.stringify(query, null, 2));
+    console.log('🔎 [searchBookByTitle] Database query (ALL books):', JSON.stringify(query, null, 2));
 
     // Find all matching books
     const books = await Book.find(query).sort({ createdAt: -1 });
-    console.log(`📊 [searchBookByTitle] Found ${books.length} books matching query`);
+    console.log(`📊 [searchBookByTitle] Found ${books.length} books matching query across the entire platform`);
 
     if (books.length === 0) {
-      console.log('❌ [searchBookByTitle] No books found. Returning null.');
+      console.log('❌ [searchBookByTitle] No books found anywhere. Returning null.');
       return null;
     }
 
     // Log all found books
     console.log('📚 [searchBookByTitle] All matching books:');
     books.forEach((book, index) => {
-      console.log(`  ${index + 1}. "${book.title}" (ID: ${book._id})`);
+      console.log(`  ${index + 1}. "${book.title}" (ID: ${book._id}) uploaded by: ${book.lecturerId}`);
     });
 
     // If multiple matches, find the best one
@@ -175,5 +222,6 @@ const searchBookByTitle = async (message, userId) => {
 
 module.exports = {
   searchBookByTitle,
-  extractBookTitle,
+  extractBookTitleWithAI,
+  extractBookTitleRegex,
 };
