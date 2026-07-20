@@ -34,10 +34,6 @@ const chatWithBook = async (req, res) => {
       console.log(`🔍 [chatWithBook] Searching for book by ID: ${bookId}`);
       book = await Book.findOne({
         _id: bookId,
-        $or: [
-          { lecturerId: userId },
-          { isPublic: true } // If you have public books
-        ]
       });
       
       if (book) {
