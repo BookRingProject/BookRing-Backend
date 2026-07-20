@@ -58,11 +58,23 @@ const chatWithFile = async (fileUrl, mimeType, userMessage, bookTitle) => {
 The user is asking: "${userMessage}"
 
 Please analyze the provided file and answer the user's question based on its content.
+
+Format your response using Markdown for better readability:
+- Use **bold** for section headers and important terms
+- Use bullet points (* or -) for lists
+- Use numbered lists (1., 2., 3.) for sequential information
+- Use > for quotes or callouts
+- Use --- for horizontal rules between sections
+- Keep paragraphs clear and well-spaced
+
+Guidelines:
 - Be thorough and accurate
 - Reference specific parts of the book when relevant
 - If the information isn't in the book, say so clearly
 - Keep responses clear and educational
-- If relevant, suggest related topics the user might want to explore`;
+- If relevant, suggest related topics the user might want to explore
+
+Respond in Markdown format.`;
 
     console.log('📤 [chatWithFile] Sending to Gemini...');
     console.log(`📏 [chatWithFile] Prompt length: ${prompt.length} characters`);
