@@ -1,11 +1,3 @@
-/**
- * Book Search Service - BRbot Book Discovery
- * MIT License
- * 
- * Handles searching for books in the database based on user messages.
- * Uses fuzzy matching and keyword extraction to find relevant books.
- */
-
 const Book = require('../models/Book');
 
 /**
@@ -82,10 +74,7 @@ const searchBookByTitle = async (message, userId) => {
 
     // Build search query - find books accessible to this user
     const query = {
-      $or: [
-        { lecturerId: userId },
-        { isPublic: true } // If you have public books
-      ],
+      lecturerId: userId,  
       title: { $regex: searchTitle, $options: 'i' }
     };
 
