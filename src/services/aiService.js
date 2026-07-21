@@ -1,4 +1,4 @@
-const { model } = require('../config/gemini');
+const { getModel, withKeyRotation, isQuotaError } = require('../config/gemini');
 const fs = require('fs');
 const path = require('path');
 const { CATEGORIES } = require('../utils/constants');
@@ -63,6 +63,15 @@ const prepareContentForGemini = async (filePath, prompt) => {
 };
 
 /**
+ * Execute Gemini API call with automatic key rotation
+ * @param {Function} apiCall - Function that takes a model and returns a result
+ * @returns {Promise<any>} - Result of the API call
+ */
+const callWithRotation = async (apiCall) => {
+  return withKeyRotation(apiCall);
+};
+
+/**
  * Fetch a file from URL and convert to base64 for Gemini
  * @param {string} fileUrl - URL of the file to fetch
  * @param {string} mimeType - MIME type of the file
@@ -113,21 +122,28 @@ Please analyze the provided file and answer the user's question based on its con
 - Keep responses clear and educational
 - If relevant, suggest related topics the user might want to explore`;
 
-    // Send to Gemini with the file
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: mimeType || 'application/pdf',
-          data: base64Data,
+    // Send to Gemini with the file using key rotation
+    const result = await withKeyRotation(async (model) => {
+      return await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            mimeType: mimeType || 'application/pdf',
+            data: base64Data,
+          },
         },
-      },
-    ]);
+      ]);
+    });
 
     return result.response.text();
 
   } catch (error) {
     console.error('Gemini chat error:', error);
+    
+    // Check if all keys are exhausted
+    if (error.message?.includes('All Gemini API keys have reached their daily quota')) {
+      throw new Error('All AI service keys are currently exhausted. Please try again after midnight.');
+    }
     
     // Check for specific error types
     if (error.message?.includes('fetch')) {
@@ -169,11 +185,19 @@ Please analyze the provided book content and answer the user's question based on
 - If the information isn't in the book, say so clearly
 - Keep responses clear and educational`;
 
-    const result = await model.generateContent(prompt);
+    const result = await withKeyRotation(async (model) => {
+      return await model.generateContent(prompt);
+    });
+
     return result.response.text();
 
   } catch (error) {
     console.error('Gemini text chat error:', error);
+    
+    if (error.message?.includes('All Gemini API keys have reached their daily quota')) {
+      throw new Error('All AI service keys are currently exhausted. Please try again after midnight.');
+    }
+    
     throw new Error('Failed to get AI response from text. Please try again.');
   }
 };
@@ -203,12 +227,20 @@ const summarizePDF = async (filePath, options = {}) => {
     }
 
     const content = await prepareContentForGemini(filePath, prompt);
-    const result = await model.generateContent(content);
-    const summary = result.response.text();
     
+    const result = await withKeyRotation(async (model) => {
+      return await model.generateContent(content);
+    });
+    
+    const summary = result.response.text();
     return summary;
   } catch (error) {
     console.error('Gemini summarization error:', error);
+    
+    if (error.message?.includes('All Gemini API keys have reached their daily quota')) {
+      throw new Error('All AI service keys are currently exhausted. Please try again after midnight.');
+    }
+    
     throw new Error('Failed to summarize document: ' + error.message);
   }
 };
@@ -241,7 +273,10 @@ const detectCategory = async (filePath) => {
     }
 
     const content = await prepareContentForGemini(filePath, prompt);
-    const result = await model.generateContent(content);
+    
+    const result = await withKeyRotation(async (model) => {
+      return await model.generateContent(content);
+    });
     
     let category = result.response.text().trim();
     
@@ -254,6 +289,11 @@ const detectCategory = async (filePath) => {
     return category;
   } catch (error) {
     console.error('Gemini category detection error:', error);
+    
+    if (error.message?.includes('All Gemini API keys have reached their daily quota')) {
+      console.warn('All keys exhausted - using default category');
+    }
+    
     return CATEGORIES[0];
   }
 };
@@ -277,4 +317,5 @@ module.exports = {
   chatWithFile,
   chatWithText,
   fetchFileAsBase64,
+  callWithRotation,
 };
