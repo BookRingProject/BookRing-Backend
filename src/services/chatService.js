@@ -1,4 +1,4 @@
-const { model } = require('../config/gemini');
+const { withKeyRotation, isQuotaError } = require('../config/gemini');
 const axios = require('axios');
 
 /**
@@ -76,20 +76,22 @@ Guidelines:
 
 Respond in Markdown format.`;
 
-    console.log('📤 [chatWithFile] Sending to Gemini...');
+    console.log('📤 [chatWithFile] Sending to Gemini with key rotation...');
     console.log(`📏 [chatWithFile] Prompt length: ${prompt.length} characters`);
 
-    // Send to Gemini with the file
+    // Send to Gemini with the file using key rotation
     const startTime = Date.now();
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: mimeType,
-          data: base64File,
+    const result = await withKeyRotation(async (model) => {
+      return await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64File,
+          },
         },
-      },
-    ]);
+      ]);
+    });
     const endTime = Date.now();
 
     const response = result.response;
@@ -104,14 +106,20 @@ Respond in Markdown format.`;
   } catch (error) {
     console.error('❌ [chatWithFile] Gemini chat error:', error.message);
     
+    // Check if all keys are exhausted
+    if (error.message?.includes('All Gemini API keys have reached their daily quota')) {
+      console.error('   🔴 All API keys exhausted');
+      throw new Error('All AI service keys are currently exhausted. Please try again after midnight.');
+    }
+    
     // Check for specific error types
     if (error.message?.includes('fetch')) {
       console.error('   🔴 File fetch failed - check if URL is accessible');
       throw new Error('Could not access the book file. Please make sure the file is available.');
     }
     
-    if (error.message?.includes('429') || error.message?.includes('quota')) {
-      console.error('   🔴 Rate limit or quota exceeded');
+    if (error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('rate limit')) {
+      console.error('   🔴 Rate limit or quota exceeded - key rotation should handle this');
       throw new Error('The AI service is currently busy. Please try again in a moment.');
     }
     
@@ -158,9 +166,12 @@ Please analyze the provided book content and answer the user's question based on
 - If the information isn't in the book, say so clearly
 - Keep responses clear and educational`;
 
-    console.log('📤 [chatWithText] Sending to Gemini...');
+    console.log('📤 [chatWithText] Sending to Gemini with key rotation...');
     
-    const result = await model.generateContent(prompt);
+    const result = await withKeyRotation(async (model) => {
+      return await model.generateContent(prompt);
+    });
+    
     const text = result.response.text();
     
     console.log(`✅ [chatWithText] Gemini response received. Length: ${text.length} characters`);
@@ -168,6 +179,11 @@ Please analyze the provided book content and answer the user's question based on
 
   } catch (error) {
     console.error('❌ [chatWithText] Error:', error.message);
+    
+    if (error.message?.includes('All Gemini API keys have reached their daily quota')) {
+      throw new Error('All AI service keys are currently exhausted. Please try again after midnight.');
+    }
+    
     throw new Error('Failed to get AI response from text. Please try again.');
   }
 };
