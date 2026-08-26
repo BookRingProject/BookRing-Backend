@@ -1,3 +1,5 @@
+'use strict';
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -19,24 +21,160 @@ const chatRoutes = require('./routes/chatRoutes');
 
 const app = express();
 
-// CORS - Allow ALL origins (for development/StackBlitz)
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-forwarded-host', 'x-forwarded-port',  'X-Forwarded-Host', 'x-forwarded-proto', 'X-Forwarded-Proto', 'x-forwarded-for', 'X-Forwarded-For'],
-}));
+/**
+ * ============================================================
+ * CORS CONFIGURATION
+ * ============================================================
+ *
+ * Production frontend:
+ *   https://bookring.vercel.app
+ *
+ * Local development:
+ *   http://localhost:3000
+ *   http://localhost:5173
+ *
+ * You can add additional frontend URLs through:
+ *
+ * CORS_ORIGINS=https://bookring.vercel.app,http://localhost:3000
+ *
+ * Do NOT use "*" when credentials are enabled.
+ */
 
-// Handle preflight requests
-app.options('*', cors());
+const defaultAllowedOrigins = [
+  'https://bookring.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+];
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const envAllowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  : [];
+
+const allowedOrigins = [
+  ...new Set([
+    ...defaultAllowedOrigins,
+    ...envAllowedOrigins,
+  ]),
+];
+
+console.log('🌐 [CORS] Allowed origins:');
+allowedOrigins.forEach((origin) => {
+  console.log(`   ✅ ${origin}`);
+});
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests without an Origin header.
+    //
+    // This is useful for:
+    // - server-to-server requests
+    // - health checks
+    // - Render/internal requests
+    // - command-line tools
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn(
+      `🚫 [CORS] Blocked origin: ${origin}`
+    );
+
+    return callback(
+      new Error(`CORS policy blocked origin: ${origin}`)
+    );
+  },
+
+  credentials: true,
+
+  methods: [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS',
+  ],
+
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+  ],
+
+  exposedHeaders: [
+    'Content-Length',
+    'Content-Type',
+  ],
+
+  optionsSuccessStatus: 204,
+};
+
+/**
+ * IMPORTANT:
+ * CORS must be registered BEFORE your routes.
+ */
+app.use(cors(corsOptions));
+
+/**
+ * Explicit preflight handling.
+ */
+app.options('*', cors(corsOptions));
+
+/**
+ * ============================================================
+ * BODY PARSING
+ * ============================================================
+ */
+
+app.use(
+  express.json({
+    limit: '10mb',
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: '10mb',
+  })
+);
+
+/**
+ * ============================================================
+ * LOGGING
+ * ============================================================
+ */
+
 app.use(morgan('dev'));
 
-// Static folder for uploads
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+/**
+ * ============================================================
+ * STATIC FILES
+ * ============================================================
+ */
 
-// Routes
+app.use(
+  '/uploads',
+  express.static(
+    path.join(__dirname, '../uploads')
+  )
+);
+
+/**
+ * ============================================================
+ * API ROUTES
+ * ============================================================
+ */
+
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/lecturers', lecturerRoutes);
@@ -49,17 +187,40 @@ app.use('/api/saves', saveRoutes);
 app.use('/api/follows', followRoutes);
 app.use('/api/chat', chatRoutes);
 
-// Health check
+/**
+ * ============================================================
+ * HEALTH CHECK
+ * ============================================================
+ */
+
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Bookring API is running' });
+  return res.status(200).json({
+    success: true,
+    status: 'ok',
+    message: 'Bookring API is running',
+  });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+/**
+ * ============================================================
+ * 404 HANDLER
+ * ============================================================
+ */
+
+app.use((req, res) => {
+  return res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`,
+  });
 });
 
-// Error middleware (last)
+/**
+ * ============================================================
+ * GLOBAL ERROR HANDLER
+ * Must remain LAST.
+ * ============================================================
+ */
+
 app.use(errorMiddleware);
 
 module.exports = app;
