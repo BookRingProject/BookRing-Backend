@@ -4,7 +4,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 // CONFIGURATION
 // ============================================================
 
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
 // Number of retries AFTER the first attempt.
 // Example: MAX_RETRIES = 2 means up to 3 attempts per key.
